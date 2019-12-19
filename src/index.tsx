@@ -1,9 +1,10 @@
 import * as React from 'react'
 import { Saga, ExtractAction, Action, StateMap, Dispatcher } from './types'
-import { createStore as createRedux, applyMiddleware, Reducer } from 'redux'
+import { createStore as createRedux, applyMiddleware, Reducer, Store } from 'redux'
 import { connect } from 'react-redux'
 
 export { Saga, ExtractAction, Action }
+
 
 let composeWithDevTools: any
 try {
@@ -27,23 +28,34 @@ export function createStore<TState, TAction extends Action>(name: string = 'main
     for (const [key, reducer] of Array.from(reducers)) {
       nextState[key] = reducer(nextState, action) as any
     }
+    console.log('reduce', state, action, nextState)
     return nextState
   }
 
   const saga = createSaga<TState, TAction>()
 
-  const store = createRedux<TState, TAction, {}, {}>(
-    reduce,
-    composeWithDevTools
-      ? composeWithDevTools({
-          name: `(${window.location.hostname}) - ${name}`,
-        })(applyMiddleware(saga.saga))
-      : applyMiddleware(saga.saga)
-  )
+  if (composeWithDevTools) {
+    console.log('using dev tools')
+  }
+
+  let store: Store<TState, TAction>
+
+  const setup = () => {
+    store = createRedux<TState, TAction, {}, {}>(
+      reduce,
+      composeWithDevTools
+        ? composeWithDevTools({
+            name: `(${window.location.hostname}) - ${name}`,
+          })(applyMiddleware(saga.saga))
+        : applyMiddleware(saga.saga),
+    )
+
+    return store
+  }
 
   function withState<TFromState, TProps = {}>(
     map: StateMap<TState, TAction, TFromState>,
-    comp: Comp<TFromState & TProps & { dispatch: Dispatcher<TAction> }>
+    comp: Comp<TFromState & TProps & { dispatch: Dispatcher<TAction> }>,
   ): React.FunctionComponent<TProps> {
     const Child = connect<TFromState, TState, TProps, TState>(state => ({
       ...map({ ...state, dispatch: store.dispatch }),
@@ -53,34 +65,34 @@ export function createStore<TState, TAction extends Action>(name: string = 'main
   }
 
   return {
-    dispatch: store.dispatch,
     withState,
-    store,
+    setup,
     createReducer<TAction extends Action, TKey extends keyof TState>(
       key: TKey,
-      init: TState[TKey]
+      init: TState[TKey],
     ) {
       if (reducers.has(key)) {
         throw new Error('Cannot create reducer for same key twice')
       }
 
-      const { reducer, handle } = createReducer<TState[TKey], TAction>()
+      const { reducer, handle } = createReducer<TState[TKey], TAction>(init)
       initState.set(key, init)
       reducers.set(key, reducer as any)
+      console.log('added reducer', key)
       return handle
     },
     saga: saga.handle,
   }
 }
 
-function createReducer<TState, TAction extends Action>() {
+function createReducer<TState, TAction extends Action>(init: TState) {
   type TReturn = Partial<TState> | void
 
   const handlers = new Map<TAction['type'], any>()
 
   const handle = <TType extends TAction['type']>(
     type: TType,
-    handler: ((state: TState, action: ExtractAction<TAction, TType>) => TReturn) | TReturn
+    handler: ((state: TState, action: ExtractAction<TAction, TType>) => TReturn) | TReturn,
   ) => {
     const existing = handlers.get(type)
 
@@ -93,7 +105,7 @@ function createReducer<TState, TAction extends Action>() {
     handlers.set(type, handler)
   }
 
-  const reducer = (state: TState, action: TAction | any): TState => {
+  const reducer = (state: TState = init, action: TAction | any): TState => {
     const handler = handlers.get(action.type)
     if (!handler) return state
     if (typeof handler === 'function') {
@@ -109,7 +121,7 @@ function createReducer<TState, TAction extends Action>() {
 function createSaga<TState, TAction extends Action>() {
   const typeHandlers = new Map<TAction['type'], Array<Function>>()
   const saga: Saga<TState, TAction> = ({ dispatch, getState }) => next => async (
-    action: TAction
+    action: TAction,
   ) => {
     next(action)
 
@@ -133,7 +145,7 @@ function createSaga<TState, TAction extends Action>() {
 
   const handle = <TType extends TAction['type']>(
     type: TType,
-    handler: (action: ExtractAction<TAction, TType>, dispatch: Dispatch, getState: TState) => any
+    handler: (action: ExtractAction<TAction, TType>, dispatch: Dispatch, getState: TState) => any,
   ) => {
     if (!typeHandlers.has(type)) {
       typeHandlers.set(type, [])
