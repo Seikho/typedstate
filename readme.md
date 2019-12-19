@@ -1,4 +1,4 @@
-# TypedStore
+# TypedState
 
 > A React/Redux wrapper to reduce boilerplate
 
