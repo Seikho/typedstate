@@ -5,7 +5,7 @@
 ## Usage
 
 ```ts
-// store.ts
+// store/store.ts
 import { createStore } from 'typedstore'
 import { UserState, UserAction } from './user'
 import { GameState, GameAction } from './game'
@@ -18,11 +18,11 @@ type AppState = {
 
 type AppAction = UserAction | GameAction
 
-export const { store, createReducer, saga, dispatch, withState } = createStore<UserState, UserAction>(
+export const { setup, createReducer, saga, dispatch, withState } = createStore<UserState, UserAction>(
   'custom name'
 )
 
-// /users/...
+// store/users/...
 import { createReducer, saga } from '../store'
 
 export type UserState = { isLoading: boolean; name: string }
@@ -42,4 +42,13 @@ saga('USER_REQUEST_PROFILE', async (action, dispatch) => {
   const profile = await getProfile()
   dispatch({ type: 'USER_RECEIVE_PROFILE', name: profile.name })
 })
+
+// store/index.ts
+
+import './users'
+import { setup, withState } from './store'
+
+const store = setup()
+
+export { store, withState }
 ```
