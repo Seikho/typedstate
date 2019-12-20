@@ -2,7 +2,7 @@
 
 > A React/Redux wrapper to reduce boilerplate
 
-## Usage
+## Setup
 
 ```ts
 // store/store.ts
@@ -18,9 +18,10 @@ type AppState = {
 
 type AppAction = UserAction | GameAction
 
-export const { setup, createReducer, saga, dispatch, withState } = createStore<UserState, UserAction>(
-  'custom name'
-)
+export const { setup, createReducer, saga, dispatch, withState } = createStore<
+  UserState,
+  UserAction
+>('custom name')
 
 // store/users/...
 import { createReducer, saga } from '../store'
@@ -51,4 +52,48 @@ import { setup, withState } from './store'
 const store = setup()
 
 export { store, withState }
+```
+
+## Consumption
+
+```tsx
+// App.tsx
+import { Provider } from 'react-redux'
+import { store } from './store'
+
+
+// A standard top-level component
+export const App = () => (
+  <Provider store={store}>
+    <Router>
+      <Switch>
+        <Route ... />
+        <Route ... />
+        <Route ... />
+      </Switch>
+    </Router>
+  </Provider>
+)
+
+// A random component connected with state:
+import { withState } from '../store'
+
+// If you do not pass in props to your component, the component props will be inferred
+// from your "state to props" map function so these generics are optional:
+
+// The props mapped from redux state:
+type State = { name: string }
+
+// The standard props to render the component:
+type Props = { hide: boolean }
+
+export const Component = withState<State, Props>(
+  // Your map function from state to props:
+  ({ user }) => ({ username: user.name }),
+  // Your component with your state props + dispatch + standard props
+  ({ username, hide, dispatch }) => {
+    //
+    return <div className={hide ? 'hide' : ''}>{username}</div>
+  }
+)
 ```
