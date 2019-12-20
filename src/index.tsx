@@ -5,7 +5,6 @@ import { connect } from 'react-redux'
 
 export { Saga, ExtractAction, Action }
 
-
 let composeWithDevTools: any
 try {
   composeWithDevTools = require('redux-devtools-extension').composeWithDevTools
@@ -26,17 +25,13 @@ export function createStore<TState, TAction extends Action>(name: string = 'main
   const reduce = (state: TState | undefined, action: TAction): TState => {
     let nextState: TState = state ? { ...state } : getInitState()
     for (const [key, reducer] of Array.from(reducers)) {
-      nextState[key] = reducer(nextState, action) as any
+      const subState = reducer(nextState[key] as any, action) as any
+      nextState[key] = subState
     }
-    console.log('reduce', state, action, nextState)
     return nextState
   }
 
   const saga = createSaga<TState, TAction>()
-
-  if (composeWithDevTools) {
-    console.log('using dev tools')
-  }
 
   let store: Store<TState, TAction>
 
@@ -47,7 +42,7 @@ export function createStore<TState, TAction extends Action>(name: string = 'main
         ? composeWithDevTools({
             name: `(${window.location.hostname}) - ${name}`,
           })(applyMiddleware(saga.saga))
-        : applyMiddleware(saga.saga),
+        : applyMiddleware(saga.saga)
     )
 
     return store
@@ -55,7 +50,7 @@ export function createStore<TState, TAction extends Action>(name: string = 'main
 
   function withState<TFromState, TProps = {}>(
     map: StateMap<TState, TAction, TFromState>,
-    comp: Comp<TFromState & TProps & { dispatch: Dispatcher<TAction> }>,
+    comp: Comp<TFromState & TProps & { dispatch: Dispatcher<TAction> }>
   ): React.FunctionComponent<TProps> {
     const Child = connect<TFromState, TState, TProps, TState>(state => ({
       ...map({ ...state, dispatch: store.dispatch }),
@@ -69,7 +64,7 @@ export function createStore<TState, TAction extends Action>(name: string = 'main
     setup,
     createReducer<TAction extends Action, TKey extends keyof TState>(
       key: TKey,
-      init: TState[TKey],
+      init: TState[TKey]
     ) {
       if (reducers.has(key)) {
         throw new Error('Cannot create reducer for same key twice')
@@ -78,7 +73,6 @@ export function createStore<TState, TAction extends Action>(name: string = 'main
       const { reducer, handle } = createReducer<TState[TKey], TAction>(init)
       initState.set(key, init)
       reducers.set(key, reducer as any)
-      console.log('added reducer', key)
       return handle
     },
     saga: saga.handle,
@@ -92,7 +86,7 @@ function createReducer<TState, TAction extends Action>(init: TState) {
 
   const handle = <TType extends TAction['type']>(
     type: TType,
-    handler: ((state: TState, action: ExtractAction<TAction, TType>) => TReturn) | TReturn,
+    handler: ((state: TState, action: ExtractAction<TAction, TType>) => TReturn) | TReturn
   ) => {
     const existing = handlers.get(type)
 
@@ -121,7 +115,7 @@ function createReducer<TState, TAction extends Action>(init: TState) {
 function createSaga<TState, TAction extends Action>() {
   const typeHandlers = new Map<TAction['type'], Array<Function>>()
   const saga: Saga<TState, TAction> = ({ dispatch, getState }) => next => async (
-    action: TAction,
+    action: TAction
   ) => {
     next(action)
 
@@ -145,7 +139,7 @@ function createSaga<TState, TAction extends Action>() {
 
   const handle = <TType extends TAction['type']>(
     type: TType,
-    handler: (action: ExtractAction<TAction, TType>, dispatch: Dispatch, getState: TState) => any,
+    handler: (action: ExtractAction<TAction, TType>, dispatch: Dispatch, getState: TState) => any
   ) => {
     if (!typeHandlers.has(type)) {
       typeHandlers.set(type, [])
