@@ -1,6 +1,6 @@
 {
   "name": "typedstate",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "",
   "main": "src/index.js",
   "scripts": {
@@ -33,6 +33,7 @@
   "files": [
     "src/**.js",
     "src/**/*.ts",
+    "src/**/*.tsx",
     "tsconfig.json",
     "package.json",
     "readme.md",
