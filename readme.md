@@ -28,7 +28,7 @@ import { createReducer, saga } from '../store'
 
 export type UserState = { isLoading: boolean; name: string }
 
-export const reducer = reducer<UserAction, 'user'>('user', initState)
+export const reducer = createReducer<UserAction, 'user'>('user', initState)
 
 handle('USER_REQUEST_PROFILE', { isLoading: true })
 
