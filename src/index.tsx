@@ -14,10 +14,7 @@ type Reducer<S = any, A extends { type: string } = any> = (state: S | undefined,
 
 type ExtractActions<TAction> = TAction extends (state: any, action: infer A) => any ? A : never
 
-export function createStore<TTree extends { [key: string]: Reducer }>(
-  name: string = 'main',
-  tree: TTree
-) {
+export function createStore<TTree extends { [key: string]: Reducer }>(name: string = 'main', tree: TTree) {
   type Reducers = TTree[keyof TTree]
   type Action = ExtractActions<Reducers>
   type State = { [K in keyof TTree]: ReturnType<TTree[K]> }
@@ -41,31 +38,27 @@ export function createStore<TTree extends { [key: string]: Reducer }>(
 
   const saga = createSaga<State, Action>()
 
-  let store: Store<State, Action>
+  const store: Store<State, Action> = createRedux<State, Action, {}, {}>(
+    reduce,
+    composeWithDevTools
+      ? composeWithDevTools({
+          name: `${name} - (${window.location.hostname}) `,
+        })(applyMiddleware(saga.saga))
+      : applyMiddleware(saga.saga)
+  )
 
-  const setup = () => {
-    store = createRedux<State, Action, {}, {}>(
-      reduce,
-      composeWithDevTools
-        ? composeWithDevTools({
-            name: `(${window.location.hostname}) - ${name}`,
-          })(applyMiddleware(saga.saga))
-        : applyMiddleware(saga.saga)
-    )
-
-    function withState<TFromState, TProps = {}>(
-      map: StateMap<State, Action, TFromState>,
-      comp: Comp<TFromState & TProps & { dispatch: Dispatcher<Action> }>
-    ): React.FunctionComponent<TProps> {
-      const Child = connect<TFromState, State, TProps, State>((state) => ({
-        ...map({ ...state, dispatch: store.dispatch }),
-        dispatch: store.dispatch,
-      }))(comp as any)
-      return (props: TProps) => <Child {...props} />
-    }
-
-    return { store, withState }
+  function withState<TFromState, TProps = {}>(
+    map: StateMap<State, Action, TFromState>,
+    comp: Comp<TFromState & TProps & { dispatch: Dispatcher<Action> }>
+  ): React.FunctionComponent<TProps> {
+    const Child = connect<TFromState, State, TProps, State>((state) => ({
+      ...map({ ...state, dispatch: store.dispatch }),
+      dispatch: store.dispatch,
+    }))(comp as any)
+    return (props: TProps) => <Child {...props} />
   }
+
+  const setup = () => ({ store, withState })
 
   return {
     setup,
@@ -108,9 +101,7 @@ export function createReducer<TState, TAction extends Action>(init: TState) {
 
 function createSaga<TState, TAction extends Action>() {
   const typeHandlers = new Map<TAction['type'], Array<Function>>()
-  const saga: Saga<TState, TAction> = ({ dispatch, getState }) => (next) => async (
-    action: TAction
-  ) => {
+  const saga: Saga<TState, TAction> = ({ dispatch, getState }) => (next) => async (action: TAction) => {
     next(action)
 
     const handlers = typeHandlers.get(action.type)
