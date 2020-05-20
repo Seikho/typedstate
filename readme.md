@@ -2,33 +2,30 @@
 
 > A React/Redux wrapper to reduce boilerplate
 
-## Setup
+## Example Setup
+
+### ROOT/store/store.ts
 
 ```ts
-// store/store.ts
 import { createStore } from 'typedstore'
-import { UserState, UserAction } from './user'
-import { GameState, GameAction } from './game'
+import * as user from './user'
+import * as game from './game' // would be in ROOT/store/game/index.ts ...
 
-type AppState = {
-  user: UserState
-  game: GameState
-  // etc...
-}
+export const { setup, saga } = createStore('custom name', {
+  user: user.reducer,
+  game: game.reducer,
+})
+```
 
-type AppAction = UserAction | GameAction
+### ROOT/store/users/index.ts
 
-export const { setup, createReducer, saga, dispatch, withState } = createStore<
-  UserState,
-  UserAction
->('custom name')
-
-// store/users/...
-import { createReducer, saga } from '../store'
+```ts
+import { createReducer } from 'typedstate'
+import { saga } from '../store'
 
 export type UserState = { isLoading: boolean; name: string }
 
-export const reducer = createReducer<UserAction, 'user'>('user', initState)
+export const reducer = createReducer<UserState, UserAction>(initState)
 
 handle('USER_REQUEST_PROFILE', { isLoading: true })
 
@@ -43,13 +40,14 @@ saga('USER_REQUEST_PROFILE', async (action, dispatch) => {
   const profile = await getProfile()
   dispatch({ type: 'USER_RECEIVE_PROFILE', name: profile.name })
 })
+```
 
-// store/index.ts
+### ROOT/store/index.ts
 
-import './users'
-import { setup, withState } from './store'
+```ts
+import { setup } from './store'
 
-const store = setup()
+const { store, withState } = setup()
 
 export { store, withState }
 ```

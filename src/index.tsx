@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { Saga, ExtractAction, Action, StateMap, Dispatcher } from './types'
-import { createStore as createRedux, applyMiddleware, Reducer, Store } from 'redux'
+import { createStore as createRedux, applyMiddleware, Store } from 'redux'
 import { connect } from 'react-redux'
 
 export { Saga, ExtractAction, Action }
@@ -10,33 +10,41 @@ try {
   composeWithDevTools = require('redux-devtools-extension').composeWithDevTools
 } catch {}
 
-export function createStore<TState, TAction extends Action>(name: string = 'main') {
-  const reducers = new Map<keyof TState, Reducer<TState, TAction>>()
-  const initState = new Map<keyof TState, any>()
+type Reducer<S = any, A extends { type: string } = any> = (state: S | undefined, action: A) => S
 
-  const getInitState = (): TState => {
-    const state: TState = {} as any
-    for (const [key, subState] of Array.from(initState)) {
-      state[key] = { ...subState }
-    }
-    return state
+type ExtractActions<TAction> = TAction extends (state: any, action: infer A) => any ? A : never
+
+export function createStore<TTree extends { [key: string]: Reducer }>(
+  name: string = 'main',
+  tree: TTree
+) {
+  type Reducers = TTree[keyof TTree]
+  type Action = ExtractActions<Reducers>
+  type State = { [K in keyof TTree]: ReturnType<TTree[K]> }
+
+  const initState: State = {} as any
+
+  for (const key in tree) {
+    initState[key] = tree[key](undefined, { type: '@@INIT' })
   }
 
-  const reduce = (state: TState | undefined, action: TAction): TState => {
-    let nextState: TState = state ? { ...state } : getInitState()
-    for (const [key, reducer] of Array.from(reducers)) {
+  const reducers = Object.entries(tree)
+
+  const reduce = (state: State | undefined, action: Action): State => {
+    let nextState: any = state ? { ...state } : { ...initState }
+    for (const [key, reducer] of reducers) {
       const subState = reducer(nextState[key] as any, action) as any
       nextState[key] = subState
     }
     return nextState
   }
 
-  const saga = createSaga<TState, TAction>()
+  const saga = createSaga<State, Action>()
 
-  let store: Store<TState, TAction>
+  let store: Store<State, Action>
 
   const setup = () => {
-    store = createRedux<TState, TAction, {}, {}>(
+    store = createRedux<State, Action, {}, {}>(
       reduce,
       composeWithDevTools
         ? composeWithDevTools({
@@ -45,41 +53,27 @@ export function createStore<TState, TAction extends Action>(name: string = 'main
         : applyMiddleware(saga.saga)
     )
 
-    return store
-  }
+    function withState<TFromState, TProps = {}>(
+      map: StateMap<State, Action, TFromState>,
+      comp: Comp<TFromState & TProps & { dispatch: Dispatcher<Action> }>
+    ): React.FunctionComponent<TProps> {
+      const Child = connect<TFromState, State, TProps, State>((state) => ({
+        ...map({ ...state, dispatch: store.dispatch }),
+        dispatch: store.dispatch,
+      }))(comp as any)
+      return (props: TProps) => <Child {...props} />
+    }
 
-  function withState<TFromState, TProps = {}>(
-    map: StateMap<TState, TAction, TFromState>,
-    comp: Comp<TFromState & TProps & { dispatch: Dispatcher<TAction> }>
-  ): React.FunctionComponent<TProps> {
-    const Child = connect<TFromState, TState, TProps, TState>(state => ({
-      ...map({ ...state, dispatch: store.dispatch }),
-      dispatch: store.dispatch,
-    }))(comp as any)
-    return (props: TProps) => <Child {...props} />
+    return { store, withState }
   }
 
   return {
-    withState,
     setup,
-    createReducer<TAction extends Action, TKey extends keyof TState>(
-      key: TKey,
-      init: TState[TKey]
-    ) {
-      if (reducers.has(key)) {
-        throw new Error('Cannot create reducer for same key twice')
-      }
-
-      const { reducer, handle } = createReducer<TState[TKey], TAction>(init)
-      initState.set(key, init)
-      reducers.set(key, reducer as any)
-      return handle
-    },
     saga: saga.handle,
   }
 }
 
-function createReducer<TState, TAction extends Action>(init: TState) {
+export function createReducer<TState, TAction extends Action>(init: TState) {
   type TReturn = Partial<TState> | void
 
   const handlers = new Map<TAction['type'], any>()
@@ -99,7 +93,7 @@ function createReducer<TState, TAction extends Action>(init: TState) {
     handlers.set(type, handler)
   }
 
-  const reducer = (state: TState = init, action: TAction | any): TState => {
+  const reducer: Reducer<TState, TAction> = (state = init, action) => {
     const handler = handlers.get(action.type)
     if (!handler) return state
     if (typeof handler === 'function') {
@@ -114,7 +108,7 @@ function createReducer<TState, TAction extends Action>(init: TState) {
 
 function createSaga<TState, TAction extends Action>() {
   const typeHandlers = new Map<TAction['type'], Array<Function>>()
-  const saga: Saga<TState, TAction> = ({ dispatch, getState }) => next => async (
+  const saga: Saga<TState, TAction> = ({ dispatch, getState }) => (next) => async (
     action: TAction
   ) => {
     next(action)
