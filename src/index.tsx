@@ -14,7 +14,10 @@ type Reducer<S = any, A extends { type: string } = any> = (state: S | undefined,
 
 type ExtractActions<TAction> = TAction extends (state: any, action: infer A) => any ? A : never
 
-export function createStore<TTree extends { [key: string]: Reducer }>(name: string = 'main', tree: TTree) {
+export function createStore<TTree extends { [key: string]: Reducer }>(
+  name: string = 'main',
+  tree: TTree
+) {
   type Reducers = TTree[keyof TTree]
   type Action = ExtractActions<Reducers>
   type State = { [K in keyof TTree]: ReturnType<TTree[K]> }
@@ -27,6 +30,8 @@ export function createStore<TTree extends { [key: string]: Reducer }>(name: stri
 
   const reducers = Object.entries(tree)
 
+  // We will use this to make our reducers in user-land declarative.
+  // Calling handle('TYPE', ...) will register the handler here
   const reduce = (state: State | undefined, action: Action): State => {
     let nextState: any = state ? { ...state } : { ...initState }
     for (const [key, reducer] of reducers) {
@@ -58,7 +63,13 @@ export function createStore<TTree extends { [key: string]: Reducer }>(name: stri
     return (props: TProps) => <Child {...props} />
   }
 
-  const setup = () => ({ store, withState })
+  function withDispatch<TProps = {}>(
+    comp: Comp<TProps & { dispatch: Dispatcher<Action> }>
+  ): React.FunctionComponent<TProps> {
+    return withState(() => ({}), comp)
+  }
+
+  const setup = () => ({ store, withState, withDispatch })
 
   return {
     setup,
@@ -101,13 +112,17 @@ export function createReducer<TState, TAction extends Action>(init: TState) {
 
 function createSaga<TState, TAction extends Action>() {
   const typeHandlers = new Map<TAction['type'], Array<Function>>()
-  const saga: Saga<TState, TAction> = ({ dispatch, getState }) => (next) => async (action: TAction) => {
+  const saga: Saga<TState, TAction> = ({ dispatch, getState }) => (next) => async (
+    action: TAction
+  ) => {
     next(action)
 
     const handlers = typeHandlers.get(action.type)
     if (!handlers) return
 
     for (const handler of handlers) {
+      // We only retrieve state if three parameters are passed to a saga handler
+      // I.e. saga('TYPE', (action, dispatch, state) => ...)
       if (handler.length === 3) {
         const state = getState()
         await handler(action, dispatch, state)
