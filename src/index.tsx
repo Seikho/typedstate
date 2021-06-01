@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Saga, ExtractAction, Action, StateMap, Dispatcher } from './types'
+import { Saga, ExtractAction, Action, StateMap, Dispatcher, HandleBody } from './types'
 import { createStore as createRedux, applyMiddleware, Store } from 'redux'
 import { connect } from 'react-redux'
 
@@ -77,10 +77,19 @@ export function createStore<TTree extends { [key: string]: Reducer }>(
   }
 }
 
-export function createReducer<TState, TAction extends Action>(init: TState) {
+export function createReducer<TState, TAction extends Action>(
+  init: TState,
+  handler?: HandleBody<TState, TAction>
+) {
   type TReturn = Partial<TState> | void
 
   const handlers = new Map<TAction['type'], any>()
+
+  if (handler) {
+    for (const [key, func] of Object.entries(handler)) {
+      handlers.set(key, func)
+    }
+  }
 
   const handle = <TType extends TAction['type']>(
     type: TType,
@@ -112,28 +121,29 @@ export function createReducer<TState, TAction extends Action>(init: TState) {
 
 function createSaga<TState, TAction extends Action>() {
   const typeHandlers = new Map<TAction['type'], Array<Function>>()
-  const saga: Saga<TState, TAction> = ({ dispatch, getState }) => (next) => async (
-    action: TAction
-  ) => {
-    next(action)
+  const saga: Saga<TState, TAction> =
+    ({ dispatch, getState }) =>
+    (next) =>
+    async (action: TAction) => {
+      next(action)
 
-    const handlers = typeHandlers.get(action.type)
-    if (!handlers) return
+      const handlers = typeHandlers.get(action.type)
+      if (!handlers) return
 
-    for (const handler of handlers) {
-      // We only retrieve state if three parameters are passed to a saga handler
-      // I.e. saga('TYPE', (action, dispatch, state) => ...)
-      if (handler.length === 3) {
-        const state = getState()
-        await handler(action, dispatch, state)
-        return
+      for (const handler of handlers) {
+        // We only retrieve state if three parameters are passed to a saga handler
+        // I.e. saga('TYPE', (action, dispatch, state) => ...)
+        if (handler.length === 3) {
+          const state = getState()
+          await handler(action, dispatch, state)
+          return
+        }
+
+        await handler(action, dispatch)
       }
 
-      await handler(action, dispatch)
+      // TODO: What to do for default error handling?
     }
-
-    // TODO: What to do for default error handling?
-  }
 
   type Dispatch = (action: TAction) => void
 

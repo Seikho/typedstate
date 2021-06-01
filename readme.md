@@ -52,7 +52,7 @@ The `reducer` _must_ be exported and passed to the `createStore` function.
 ```ts
 import { createReducer } from 'typedstate'
 
-function createReducer<State, Action>(initState: State)
+function createReducer<State, Action>(initState: State, handler?: HandlerBody)
 ```
 
 ### setup()
@@ -121,6 +121,40 @@ handle('USER_RECEIVE_LOGIN', (_state, action) => {
 })
 
 handle('USER_REQUEST_LOGOUT', { name: undefined, error: undefined, loggedIn: false })
+```
+
+## Alternative way of Creating a Reducer
+
+```ts
+import { createReducer } from 'typedstate'
+
+interface State {
+  state: 'init' | 'loading' | 'loaded'
+  name?: string
+  loggedIn: boolean
+  error?: string
+}
+
+type Action =
+  | { type: 'USER_REQUEST_LOGIN'; username: string; password: string }
+  | { type: 'USER_RECEIVE_LOGIN'; name?: string; error?: string }
+  | { type: 'USER_REQUEST_LOGOUT' }
+
+export const { reducer } = createReducer<State, Action>(
+  { state: 'init', loggedIn: false },
+  {
+    USER_REQUEST_LOGIN: () => ({ error: undefined, name: undefined, state: 'loading' }),
+    USER_RECEIVE_LOGIN: (_, action) => {
+      return {
+        state: 'loaded',
+        name: action.name,
+        error: action.error,
+        loggedIn: action.error === undefined,
+      }
+    },
+    USER_REQUEST_LOGOUT: () => ({ name: undefined, error: undefined, loggedIn: false }),
+  }
+)
 ```
 
 ### Creating a Component

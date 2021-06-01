@@ -20,3 +20,7 @@ export type Saga<S, A extends Action> = Middleware<S, A>
 export type Action = { type: string }
 
 export type ExtractAction<U extends Action, T extends U['type']> = Extract<U, { type: T }>
+
+export type HandleBody<S extends {}, A extends Action> = {
+  [key in A['type']]?: (state: S, action: ExtractAction<A, key>) => Partial<S> | void
+}
