@@ -74,6 +74,7 @@ export function createStore<TTree extends { [key: string]: Reducer }>(
   return {
     setup,
     saga: saga.handle,
+    sagaBody: saga.handleBody,
   }
 }
 
@@ -147,10 +148,13 @@ function createSaga<TState, TAction extends Action>() {
 
   type Dispatch = (action: TAction) => void
 
-  const handle = <TType extends TAction['type']>(
-    type: TType,
-    handler: (action: ExtractAction<TAction, TType>, dispatch: Dispatch, getState: TState) => any
-  ) => {
+  type SagaHandler<TType extends TAction['type']> = (
+    action: ExtractAction<TAction, TType>,
+    dispatch: Dispatch,
+    state: TState
+  ) => any
+
+  const handle = <TType extends TAction['type']>(type: TType, handler: SagaHandler<TType>) => {
     if (!typeHandlers.has(type)) {
       typeHandlers.set(type, [])
     }
@@ -160,7 +164,19 @@ function createSaga<TState, TAction extends Action>() {
     typeHandlers.set(type, typeHandler)
   }
 
-  return { handle, saga }
+  const handleBody = (body: { [key in TAction['type']]?: SagaHandler<key> }) => {
+    for (const [type, func] of Object.entries(body)) {
+      if (!typeHandlers.has(type)) {
+        typeHandlers.set(type, [])
+      }
+
+      const typeHandler = typeHandlers.get(type)!
+      typeHandler.push(func as any)
+      typeHandlers.set(type, typeHandler)
+    }
+  }
+
+  return { handle, saga, handleBody }
 }
 
 type Comp<T> = React.ComponentType<T> | React.Component<T> | React.FunctionComponent<T>
