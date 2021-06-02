@@ -16,15 +16,17 @@ type ExtractActions<TAction> = TAction extends (state: any, action: infer A) => 
 
 export function createStore<TTree extends { [key: string]: Reducer }>(
   name: string = 'main',
-  tree: TTree
+  tree: TTree,
+  initialState?: { [K in keyof TTree]: ReturnType<TTree[K]> }
 ) {
   type Reducers = TTree[keyof TTree]
   type Action = ExtractActions<Reducers>
   type State = { [K in keyof TTree]: ReturnType<TTree[K]> }
 
-  const initState: State = {} as any
+  const initState: State = initialState || ({} as any)
 
   for (const key in tree) {
+    if (key in initState) continue
     initState[key] = tree[key](undefined, { type: '@@INIT' })
   }
 
@@ -70,7 +72,6 @@ export function createStore<TTree extends { [key: string]: Reducer }>(
   }
 
   const setup = () => ({ store, withState, withDispatch })
-
   return {
     setup,
     saga: saga.handle,
