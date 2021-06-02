@@ -122,6 +122,7 @@ export function createReducer<TState, TAction extends Action>(
 
 function createSaga<TState, TAction extends Action>() {
   const typeHandlers = new Map<TAction['type'], Array<Function>>()
+
   const saga: Saga<TState, TAction> =
     ({ dispatch, getState }) =>
     (next) =>
@@ -136,11 +137,11 @@ function createSaga<TState, TAction extends Action>() {
         // I.e. saga('TYPE', (action, dispatch, state) => ...)
         if (handler.length === 3) {
           const state = getState()
-          await handler(action, dispatch, state)
+          handler(action, dispatch, state)
           return
         }
 
-        await handler(action, dispatch)
+        handler(action, dispatch)
       }
 
       // TODO: What to do for default error handling?
