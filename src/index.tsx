@@ -138,7 +138,7 @@ function createSaga<TState, TAction extends Action>() {
         if (handler.length === 3) {
           const state = getState()
           handler(action, dispatch, state)
-          return
+          continue
         }
 
         handler(action, dispatch)
