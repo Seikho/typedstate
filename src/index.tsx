@@ -17,7 +17,7 @@ type ExtractActions<TAction> = TAction extends (state: any, action: infer A) => 
 export function createStore<TTree extends { [key: string]: Reducer }>(
   name: string = 'main',
   tree: TTree,
-  initialState?: { [K in keyof TTree]: ReturnType<TTree[K]> }
+  initialState?: { [K in keyof TTree]?: ReturnType<TTree[K]> }
 ) {
   type Reducers = TTree[keyof TTree]
   type Action = ExtractActions<Reducers>
