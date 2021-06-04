@@ -10,36 +10,63 @@ try {
   composeWithDevTools = require('redux-devtools-extension').composeWithDevTools
 } catch {}
 
+type ReducerTree = { [key: string]: Reducer }
 type Reducer<S = any, A extends { type: string } = any> = (state: S | undefined, action: A) => S
+type NestedReducer = Reducer | ReducerTree
+type NestedTree = { [key: string]: NestedReducer }
+
+type InferStateFromTree<T extends NestedTree> = { [Key in keyof T]: InferState<T[Key]> }
+type InferState<T extends NestedReducer> = T extends Reducer
+  ? ReturnType<T>
+  : T extends ReducerTree
+  ? { [Key in keyof T]: InferState<T[Key]> }
+  : never
+
+type ExtractReducer<T extends Reducer | NestedTree> = T extends Reducer
+  ? T
+  : T extends NestedTree
+  ? ExtractReducer<T[keyof T]>
+  : never
 
 type ExtractActions<TAction> = TAction extends (state: any, action: infer A) => any ? A : never
 
-export function createStore<TTree extends { [key: string]: Reducer }>(
+export function createStore<TTree extends NestedTree>(
   name: string = 'main',
   tree: TTree,
-  initialState?: { [K in keyof TTree]?: ReturnType<TTree[K]> }
+  initialState?: InferStateFromTree<TTree>
 ) {
-  type Reducers = TTree[keyof TTree]
+  type Reducers = ExtractReducer<TTree>
   type Action = ExtractActions<Reducers>
-  type State = { [K in keyof TTree]: ReturnType<TTree[K]> }
+  type State = InferStateFromTree<TTree>
 
-  const initState: State = initialState || ({} as any)
+  const getNextState = (tree: NestedTree, action: any, initial?: any): any => {
+    let state: any = {}
 
-  for (const key in tree) {
-    if (key in initState) continue
-    initState[key] = tree[key](undefined, { type: '@@INIT' })
+    for (const key in tree) {
+      const init = initial[key]
+      if (init) {
+        state[key] = init
+        continue
+      }
+
+      const curr = tree[key]
+      if (isReducer(curr)) {
+        state[key] = curr(undefined, action)
+        continue
+      }
+
+      state[key] = getNextState(curr, action)
+    }
+
+    return state
   }
 
-  const reducers = Object.entries(tree)
+  const initState: State = getNextState(tree, { type: '@@INIT' }, initialState)
 
   // We will use this to make our reducers in user-land declarative.
   // Calling handle('TYPE', ...) will register the handler here
   const reduce = (state: State | undefined, action: Action): State => {
-    let nextState: any = state ? { ...state } : { ...initState }
-    for (const [key, reducer] of reducers) {
-      const subState = reducer(nextState[key] as any, action) as any
-      nextState[key] = subState
-    }
+    let nextState: any = getNextState(tree, action, state ? { ...state } : { ...initState })
     return nextState
   }
 
@@ -79,10 +106,7 @@ export function createStore<TTree extends { [key: string]: Reducer }>(
   }
 }
 
-export function createReducer<TState, TAction extends Action>(
-  init: TState,
-  handler?: HandleBody<TState, TAction>
-) {
+export function createReducer<TState, TAction extends Action>(init: TState, handler?: HandleBody<TState, TAction>) {
   type TReturn = Partial<TState> | void
 
   const handlers = new Map<TAction['type'], any>()
@@ -182,3 +206,7 @@ function createSaga<TState, TAction extends Action>() {
 }
 
 type Comp<T> = React.ComponentType<T> | React.Component<T> | React.FunctionComponent<T>
+
+function isReducer(value: any): value is Reducer {
+  return typeof value === 'function'
+}
