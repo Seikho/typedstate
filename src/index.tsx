@@ -43,15 +43,16 @@ export function createStore<TTree extends NestedTree>(
     let state: any = {}
 
     for (const key in tree) {
-      const init = initial[key]
-      if (init) {
+      const init = initial ? initial[key] : undefined
+      if (action.type === '@@INIT' && init) {
         state[key] = init
         continue
       }
 
       const curr = tree[key]
       if (isReducer(curr)) {
-        state[key] = curr(undefined, action)
+        const prev = action.type === '@@INIT' ? undefined : init
+        state[key] = curr(prev, action)
         continue
       }
 
