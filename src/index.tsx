@@ -76,9 +76,7 @@ export function createStore<TTree extends NestedTree>(
   const store: Store<State, Action> = createRedux<State, Action, {}, {}>(
     reduce,
     composeWithDevTools
-      ? composeWithDevTools({
-          name: `${name} - (${window.location.hostname}) `,
-        })(applyMiddleware(saga.saga))
+      ? composeWithDevTools({ name })(applyMiddleware(saga.saga))
       : applyMiddleware(saga.saga)
   )
 
